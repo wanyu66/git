@@ -7,15 +7,12 @@ import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.sky.constant.MessageConstant;
 import com.sky.context.BaseContext;
-import com.sky.dto.OrdersCancelDTO;
-import com.sky.dto.OrdersConfirmDTO;
-import com.sky.dto.OrdersPageQueryDTO;
-import com.sky.dto.OrdersRejectionDTO;
-import com.sky.dto.OrdersSubmitDTO;
+import com.sky.dto.*;
 import com.sky.entity.AddressBook;
 import com.sky.entity.OrderDetail;
 import com.sky.entity.Orders;
 import com.sky.entity.ShoppingCart;
+import com.sky.entity.User;
 import com.sky.exception.AddressBookBusinessException;
 import com.sky.exception.OrderBusinessException;
 import com.sky.exception.ShoppingCartBusinessException;
@@ -23,10 +20,12 @@ import com.sky.mapper.AddressBookMapper;
 import com.sky.mapper.OrderDetailMapper;
 import com.sky.mapper.OrderMapper;
 import com.sky.mapper.ShoppingCartMapper;
+import com.sky.mapper.UserMapper;
 import com.sky.result.PageResult;
 import com.sky.service.OrderService;
 import com.sky.utils.HttpClientUtil;
 import com.sky.utils.WeChatPayUtil;
+import com.sky.vo.OrderPaymentVO;
 import com.sky.vo.OrderStatisticsVO;
 import com.sky.vo.OrderSubmitVO;
 import com.sky.vo.OrderVO;
@@ -60,6 +59,8 @@ public class OderServiceImpl implements OrderService {
     private ShoppingCartMapper shoppingCartMapper;
     @Autowired
     private WeChatPayUtil weChatPayUtil;
+    @Autowired
+    private UserMapper userMapper;
 
     @Value("${sky.shop.address:}")
     private String shopAddress;
@@ -418,6 +419,59 @@ public class OderServiceImpl implements OrderService {
         orderMapper.update(orders);
     }
 
+    @Override
+    public OrderPaymentVO payment(OrdersPaymentDTO ordersPaymentDTO) throws Exception {
+        Orders orders = orderMapper.getByNumber(ordersPaymentDTO.getOrderNumber());
+        if (orders == null) {
+            throw new OrderBusinessException(MessageConstant.ORDER_NOT_FOUND);
+        }
+
+        if (!Orders.PENDING_PAYMENT.equals(orders.getStatus())) {
+            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
+        }
+
+        User user = userMapper.getById(BaseContext.getCurrentId());
+        if (user == null || !StringUtils.hasText(user.getOpenid())) {
+            throw new OrderBusinessException(MessageConstant.USER_NOT_LOGIN);
+        }
+
+        JSONObject jsonObject = weChatPayUtil.pay(
+                orders.getNumber(),
+                orders.getAmount(),
+                "苍穹外卖订单",
+                user.getOpenid());
+
+        if (!StringUtils.hasText(jsonObject.getString("package"))) {
+            log.error("生成预支付交易单失败：{}", jsonObject);
+            throw new OrderBusinessException("生成预支付交易单失败");
+        }
+
+        return OrderPaymentVO.builder()
+                .nonceStr(jsonObject.getString("nonceStr"))
+                .paySign(jsonObject.getString("paySign"))
+                .timeStamp(jsonObject.getString("timeStamp"))
+                .signType(jsonObject.getString("signType"))
+                .packageStr(jsonObject.getString("package"))
+                .build();
+    }
+
+    @Override
+    public void paySuccess(String outTradeNo) {
+        Orders ordersDB = orderMapper.getByNumber(outTradeNo);
+        if (ordersDB == null) {
+            throw new OrderBusinessException(MessageConstant.ORDER_NOT_FOUND);
+        }
+
+        Orders orders = new Orders();
+        orders.setId(ordersDB.getId());
+        orders.setStatus(Orders.TO_BE_CONFIRMED);
+        orders.setPayStatus(Orders.PAID);
+        orders.setCheckoutTime(LocalDateTime.now());
+
+        orderMapper.update(orders);
+
+    }
+
     /**
      * 检查客户的收货地址是否超出配送范围
      *
@@ -477,5 +531,7 @@ public class OderServiceImpl implements OrderService {
         if (distance > 5000) {
             throw new OrderBusinessException("超出配送范围");
         }
+
     }
+
 }
