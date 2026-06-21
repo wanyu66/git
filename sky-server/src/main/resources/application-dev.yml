@@ -11,3 +11,7 @@ sky:
     bucket-name: wanyuhao
     access-key-id: ALIBABA_CLOUD_ACCESS_KEY_ID
     access-key-secret: ALIBABA_CLOUD_ACCESS_KEY_SECRET
+  shop:
+    address:
+  baidu:
+    ak:
