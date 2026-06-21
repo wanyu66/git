@@ -3,8 +3,8 @@ package com.sky.service.impl;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
-import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
+import com.github.pagehelper.PageInfo;
 import com.sky.constant.MessageConstant;
 import com.sky.context.BaseContext;
 import com.sky.dto.OrdersCancelDTO;
@@ -137,11 +137,12 @@ public class OderServiceImpl implements OrderService {
         ordersPageQueryDTO.setUserId(BaseContext.getCurrentId());
         ordersPageQueryDTO.setStatus(status);
 
-        Page<Orders> page = orderMapper.pageQuery(ordersPageQueryDTO);
+        List<Orders> ordersList = orderMapper.pageQuery(ordersPageQueryDTO);
+        PageInfo<Orders> pageInfo = new PageInfo<>(ordersList);
         List<OrderVO> list = new ArrayList<>();
 
-        if (page != null && page.getTotal() > 0) {
-            for (Orders orders : page) {
+        if (!CollectionUtils.isEmpty(ordersList)) {
+            for (Orders orders : ordersList) {
                 List<OrderDetail> orderDetails = orderDetailMapper.getByOrderId(orders.getId());
 
                 OrderVO orderVO = new OrderVO();
@@ -150,7 +151,7 @@ public class OderServiceImpl implements OrderService {
                 list.add(orderVO);
             }
         }
-        return new PageResult(page.getTotal(), list);
+        return new PageResult(pageInfo.getTotal(), list);
     }
 
     /**
@@ -246,15 +247,15 @@ public class OderServiceImpl implements OrderService {
     public PageResult conditionSearch(OrdersPageQueryDTO ordersPageQueryDTO) {
         PageHelper.startPage(ordersPageQueryDTO.getPage(), ordersPageQueryDTO.getPageSize());
 
-        Page<Orders> page = orderMapper.pageQuery(ordersPageQueryDTO);
-        List<OrderVO> orderVOList = getOrderVOList(page);
+        List<Orders> ordersList = orderMapper.pageQuery(ordersPageQueryDTO);
+        PageInfo<Orders> pageInfo = new PageInfo<>(ordersList);
+        List<OrderVO> orderVOList = getOrderVOList(ordersList);
 
-        return new PageResult(page.getTotal(), orderVOList);
+        return new PageResult(pageInfo.getTotal(), orderVOList);
     }
 
-    private List<OrderVO> getOrderVOList(Page<Orders> page) {
+    private List<OrderVO> getOrderVOList(List<Orders> ordersList) {
         List<OrderVO> orderVOList = new ArrayList<>();
-        List<Orders> ordersList = page.getResult();
 
         if (!CollectionUtils.isEmpty(ordersList)) {
             for (Orders orders : ordersList) {
