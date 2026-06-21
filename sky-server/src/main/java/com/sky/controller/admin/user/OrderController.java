@@ -22,7 +22,7 @@ public class OrderController {
     private OrderService orderService;
     @PostMapping("/submit")
     @ApiOperation("用户下单")
-    public Result<OrdersSubmitDTO> submit(@RequestBody OrdersSubmitDTO ordersSubmitDTO){
+    public Result<OrderSubmitVO> submit(@RequestBody OrdersSubmitDTO ordersSubmitDTO){
         log.info("用户下单：{}",ordersSubmitDTO);
         OrderSubmitVO orderSubmitVO =orderService.submitOrder(ordersSubmitDTO);
         return Result.success(orderSubmitVO);
